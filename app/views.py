@@ -49,14 +49,15 @@ from ux_dom.ui.tokens import cn, surface, type_scale
 
 from app import store
 from app.catalog import CATEGORIES, PRODUCTS, get, related
-from app.host import kv
+from app.host import chrome, home, kv
 from app.hx import act, hx, wire
+from ux_app.ui import stamp_region
 
 
 def storefront(page: str | None = None) -> Any:
     from app.components.layout import Shell
 
-    key = page or store.HOST.get("page") or "home"
+    key = page or chrome.page or "home"
     body = {
         "home": _home,
         "shop": _shop,
@@ -76,7 +77,7 @@ def topbar(active: str = "home") -> Any:
     acc = store.HOST["account"]
     bag = store.cart_count()
     saved = len(store.HOST.get("wish") or [])
-    menu_open = bool(store.HOST.get("menu_open"))
+    menu_open = bool(chrome.menu_open)
     initials = "".join(part[0] for part in acc["name"].split()[:2]).upper() or "SA"
     return div(
         button(
@@ -138,7 +139,7 @@ def _menu(open_: bool, acc: dict[str, Any]) -> Any:
 
 
 def toasts() -> Any:
-    notice = store.HOST.get("notice")
+    notice = chrome.notice
     if not notice:
         return div(id="notices", className="hidden")
     return div(
@@ -175,7 +176,7 @@ def overlay() -> Any:
 def _find(open_: bool) -> Any:
     if not open_:
         return Dialog(open=False, id="overlay")
-    q = (store.HOST.get("command_q") or "").strip().lower()
+    q = (chrome.command_q or "").strip().lower()
     rows = PRODUCTS
     if q:
         rows = [p for p in PRODUCTS if q in p["name"].lower() or q in p["blurb"].lower()]
@@ -197,7 +198,7 @@ def _find(open_: bool) -> Any:
                 className="mb-2 flex items-center justify-between",
             ),
             form(
-                Input(name="q", value=store.HOST.get("command_q") or "", placeholder="Linen, oak, tote", autofocus=True),
+                Input(name="q", value=chrome.command_q or "", placeholder="Linen, oak, tote", autofocus=True),
                 hx_post="/act/command.query",
                 hx_trigger="keyup changed delay:250ms",
                 **hx(silent=True),
@@ -213,8 +214,28 @@ def _find(open_: bool) -> Any:
 def _home() -> Any:
     featured = [p for p in PRODUCTS if p.get("featured")]
     fresh = [p for p in PRODUCTS if p.get("new")]
-    idx = int(store.HOST.get("slide") or 0) % max(1, len(featured))
+    idx = int(home.slide or 0) % max(1, len(featured))
     hero = featured[idx] if featured else PRODUCTS[0]
+    carousel = stamp_region(
+        div(
+            img(src=hero["img"], alt=hero["name"], className="product-photo h-48 w-full rounded-2xl object-cover sm:h-64"),
+            div(
+                p(hero["name"], className="font-display text-2xl text-stone-50"),
+                p(hero["blurb"], className="mt-1 text-sm text-stone-400"),
+                div(
+                    act("Prev", "nav.slide", variant="outline", size="sm", index=str((idx - 1) % len(featured))),
+                    act("View", "product.open", size="sm", id=hero["id"]),
+                    act("Next", "nav.slide", variant="outline", size="sm", index=str((idx + 1) % len(featured))),
+                    className="mt-4 flex flex-wrap gap-2",
+                ),
+                className="mt-4",
+            ),
+            className=cn(surface["l1"], "rounded-2xl p-3 sm:p-4"),
+            id="carousel-hero",
+            **{"data-slide": str(idx), "data-sku": hero["id"]},
+        ),
+        uid="carousel:hero",
+    )
     return div(
         StatusStrip(
             items=[("Live floor", "default"), ("Gorakhpur", "secondary"), ("Packed today", "outline")],
@@ -239,21 +260,7 @@ def _home() -> Any:
         ),
         div(
             p("On rotation", className=cn(type_scale["caption"], "mb-3")),
-            div(
-                img(src=hero["img"], alt=hero["name"], className="product-photo h-48 w-full rounded-2xl object-cover sm:h-64"),
-                div(
-                    p(hero["name"], className="font-display text-2xl text-stone-50"),
-                    p(hero["blurb"], className="mt-1 text-sm text-stone-400"),
-                    div(
-                        act("Prev", "nav.slide", variant="outline", size="sm", index=str((idx - 1) % len(featured))),
-                        act("View", "product.open", size="sm", id=hero["id"]),
-                        act("Next", "nav.slide", variant="outline", size="sm", index=str((idx + 1) % len(featured))),
-                        className="mt-4 flex flex-wrap gap-2",
-                    ),
-                    className="mt-4",
-                ),
-                className=cn(surface["l1"], "rounded-2xl p-3 sm:p-4"),
-            ),
+            carousel,
             className="mt-10",
         ),
         div(
@@ -310,10 +317,10 @@ def _card(item: dict[str, Any]) -> Any:
 
 def _shop() -> Any:
     rows, page_n, pages = store.page_rows()
-    cat = store.HOST.get("category") or "all"
-    sort = store.HOST.get("sort") or "featured"
-    q = store.HOST.get("query") or ""
-    cap = int(store.HOST.get("price_max") or 10000)
+    cat = chrome.category or "all"
+    sort = chrome.sort or "featured"
+    q = chrome.query or ""
+    cap = int(chrome.price_max or 10000)
     return div(
         PageHeader("The floor", "Linen to waxed canvas. Filter, then walk it.", className="mb-6"),
         form(
@@ -364,13 +371,13 @@ def _shop() -> Any:
 
 
 def _pdp() -> Any:
-    item = get(store.HOST.get("product_id") or "")
+    item = get(chrome.product_id or "")
     if not item:
         return EmptyState(title="Gone", description="That piece left the floor.", action=act("Shop", "nav.shop", category="all"))
     sold = item["stock"] <= 0
     saved = store.wished(item["id"])
-    size = store.HOST.get("size") or ""
-    tab = store.HOST.get("pdp_tab") or "story"
+    size = chrome.size or ""
+    tab = chrome.pdp_tab or "story"
     story = p(item["desc"], className="text-sm leading-relaxed text-stone-300")
     reviews = div(
         *[
@@ -405,17 +412,22 @@ def _pdp() -> Any:
                     act("Size guide", "guide.open", variant="ghost", id=item["id"]) if item.get("sizes") else None,
                     className="mt-6 flex flex-wrap gap-2",
                 ),
-                div(
-                    *[
-                        act(label, "pdp.tab", variant="secondary" if tab == key else "ghost", size="sm", tab=key)
-                        for key, label in (("story", "Story"), ("reviews", "Notes"), ("care", "Care"))
-                    ],
-                    className="mt-8 flex flex-wrap gap-2",
-                ),
-                Tabs(
-                    items=[("story", "Story", story), ("reviews", "Notes", reviews), ("care", "Care", care)],
-                    active=tab,
-                    className="mt-2",
+                stamp_region(
+                    div(
+                        div(
+                            *[
+                                act(label, "pdp.tab", variant="secondary" if tab == key else "ghost", size="sm", tab=key)
+                                for key, label in (("story", "Story"), ("reviews", "Notes"), ("care", "Care"))
+                            ],
+                            className="mt-8 flex flex-wrap gap-2",
+                        ),
+                        Tabs(
+                            items=[("story", "Story", story), ("reviews", "Notes", reviews), ("care", "Care", care)],
+                            active=tab,
+                            className="mt-2",
+                        ),
+                    ),
+                    uid="tabs:pdp",
                 ),
                 className="mt-6 lg:mt-0",
             ),
@@ -465,7 +477,7 @@ def _cart_body(*, page: bool) -> Any:
         div(*[_line(r) for r in lines], className="divide-y divide-stone-800"),
         _totals(),
         form(
-            Input(name="code", placeholder="HARBOR10 or COAST20", value=store.HOST.get("promo") or ""),
+            Input(name="code", placeholder="HARBOR10 or COAST20", value=chrome.promo or ""),
             Button("Apply", type="submit", variant="outline", size="sm"),
             **wire("promo.apply"),
             className="mt-4 flex gap-2",
@@ -521,7 +533,7 @@ def _totals() -> Any:
 
 
 def _checkout() -> Any:
-    d = store.HOST["checkout"]
+    d = chrome.checkout if isinstance(chrome.checkout, dict) else {}
     if not store.cart_lines():
         return EmptyState(title="Nothing to check out", action=act("Shop", "nav.shop", category="all"))
     return div(
@@ -544,10 +556,10 @@ def _checkout() -> Any:
                             RadioGroup(
                                 name="ship",
                                 options=[("standard", "Standard · ₹80 or free over ₹8,000"), ("express", "Express · ₹180")],
-                                value=store.HOST.get("ship") or "standard",
+                                value=chrome.ship or "standard",
                             ),
                         ),
-                        div(Label("Deliver on"), DatePicker(name="deliver", value=store.HOST.get("deliver") or ""), className="mt-4"),
+                        div(Label("Deliver on"), DatePicker(name="deliver", value=chrome.deliver or ""), className="mt-4"),
                         div(
                             Label("Pay"),
                             RadioGroup(name="pay", options=[("upi", "UPI"), ("card", "Card"), ("cod", "Cash on delivery")], value=d.get("pay") or "upi"),
@@ -555,7 +567,7 @@ def _checkout() -> Any:
                         ),
                         div(
                             Label("Gift wrap"),
-                            Switch(name="gift", checked=bool(store.HOST.get("gift")), value="gift"),
+                            Switch(name="gift", checked=bool(chrome.gift), value="gift"),
                             className="mt-4 flex items-center justify-between",
                         ),
                         title="How it arrives",
@@ -635,7 +647,7 @@ def _orders() -> Any:
 
 
 def _order() -> Any:
-    oid = store.HOST.get("order_id") or ""
+    oid = chrome.order_id or ""
     order = next((o for o in store.HOST["orders"] if o["id"] == oid), None)
     if not order:
         return EmptyState(title="Order missing", action=act("Orders", "orders.open"))

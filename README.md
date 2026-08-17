@@ -11,15 +11,27 @@ Scaffolded with `uxdom create-app` (template: `shop`).
 | Package | Role |
 |---|---|
 | [ux-dom](https://github.com/bitplorer/ux-dom) | Document, DirectoryRouter, Tailwind, UI kit |
-| [ux-app](https://github.com/bitplorer/ux-app) | Actions, Caps, `App.attach` / `App.region` |
+| [ux-app](https://github.com/bitplorer/ux-app) | Actions, Caps, `App.attach` / `App.region`, Component Session/Client |
 | [ux-channel](https://github.com/bitplorer/ux-channel) | Intent → Result, regions, morph |
 
 ```python
+from ux_app import App, Component, Session
+
 host = App.boot(title="Harbor & Co.", strict=False)
 host.region(storefront)     # Channel slot app.root
 host.attach(app)            # live wire, no ux_channel import
 host.control("cart.add", id=sku)
+
+class Home(Component):
+    id = "home"
+    slide: int = Session(0)   # value, not a SessionVar
+
+class Chrome(Component):
+    id = "chrome"
+    menu_open: bool = Session(False)
 ```
+
+UI chrome (`page`, `slide`, `menu_open`, `notice`, `pdp_tab`, `command_q`, filters) lives on Component Session fields. Cart lines, orders, wish, stock, and prices stay in the product store.
 
 ## Quick start
 
@@ -49,7 +61,8 @@ app/
   main.py           # FastAPI + document.mount + DirectoryRouter + /act
   document.py       # Document.use(XElement, Htmx, Channel, Csp)
   settings.py       # WebAssets + feature flags
-  host.py           # ux-app Actions + host.region(storefront)
+  host.py           # ux-app Actions + Home/Chrome Session + host.region(storefront)
+  planes.py         # Home.slide + Chrome Session fields
   hx.py             # App.control → Channel attrs (HTMX fallback)
   views.py          # storefront markup (ux-dom UI kit)
   components/       # Shell + WaitChrome
