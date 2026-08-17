@@ -1,10 +1,8 @@
-"""Controls via App.control (live Channel after attach). HTMX is the fallback."""
+"""Controls via App.control (callables). HTMX is the fallback."""
 from __future__ import annotations
 
 import json
-from typing import Any
-
-from ux_dom.ui import Button
+from typing import Any, Callable
 
 HX_SWAP = "outerHTML swap:50ms settle:180ms"
 
@@ -22,14 +20,32 @@ def hx(*, silent: bool = False, **extra: Any) -> dict[str, Any]:
     return attrs
 
 
-def wire(name: str, *, silent: bool = False, **args: Any) -> dict[str, Any]:
-    """Prefer App.control after attach(); else mint + HTMX POST /act."""
+def action_name(fn: Any) -> str:
+    if isinstance(fn, str):
+        return fn
+    existing = getattr(fn, "__ux_action__", None)
+    if existing is not None and getattr(existing, "name", None):
+        return str(existing.name)
+    owner = getattr(fn, "__self__", None)
+    ident = getattr(owner, "id", None) if owner is not None else None
+    if ident:
+        return f"{ident}.{getattr(fn, '__name__', 'action')}"
+    return getattr(fn, "__name__", "action")
+
+
+def wire(fn: Callable[..., Any] | str, *, silent: bool = False, **args: Any) -> dict[str, Any]:
+    """Prefer App.control(callable) after attach(); else mint + HTMX POST /act."""
     from app.host import host
 
     try:
-        bound = host.control(name, **args)
+        bound = host.control(fn, **args)
     except Exception:
         bound = None
+    name = None
+    if bound:
+        name = bound.get("data_action") or bound.get("data-action")
+    if not name:
+        name = action_name(fn)
     if bound and (
         "data_channel_action" in bound
         or "data-channel-action" in bound
@@ -53,7 +69,7 @@ def wire(name: str, *, silent: bool = False, **args: Any) -> dict[str, Any]:
 
 def act(
     label: Any,
-    name: str,
+    fn: Callable[..., Any] | str,
     *,
     variant: str = "default",
     size: str = "md",
@@ -61,10 +77,12 @@ def act(
     silent: bool = False,
     **args: Any,
 ) -> Button:
+    from ux_dom.ui import Button
+
     return Button(
         label,
         variant=variant,
         size=size,
         className=className,
-        **wire(name, silent=silent, **args),
+        **wire(fn, silent=silent, **args),
     )

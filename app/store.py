@@ -37,10 +37,22 @@ def reset() -> None:
     HOST.update(_fresh())
 
 
-def _chrome() -> Any:
-    from app.host import chrome
+def _shop() -> Any:
+    from app.host import shop
 
-    return chrome
+    return shop
+
+
+def _cart() -> Any:
+    from app.host import cart
+
+    return cart
+
+
+def _checkout() -> Any:
+    from app.host import checkout
+
+    return checkout
 
 
 def inr(n: int) -> str:
@@ -49,7 +61,7 @@ def inr(n: int) -> str:
 
 def listing() -> list[dict[str, Any]]:
     rows = list(PRODUCTS)
-    ui = _chrome()
+    ui = _shop()
     cat = ui.category or "all"
     q = (ui.query or "").strip().lower()
     cap = int(ui.price_max or 10000)
@@ -77,7 +89,7 @@ def listing() -> list[dict[str, Any]]:
 def page_rows() -> tuple[list[dict[str, Any]], int, int]:
     rows = listing()
     total = max(1, (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE) if rows else 1
-    n = max(1, min(int(_chrome().page_n or 1), total))
+    n = max(1, min(int(_shop().page_n or 1), total))
     start = (n - 1) * PAGE_SIZE
     return rows[start : start + PAGE_SIZE], n, total
 
@@ -113,7 +125,7 @@ def subtotal() -> int:
 
 
 def discount() -> int:
-    rate = PROMO.get((_chrome().promo or "").upper(), 0)
+    rate = PROMO.get((_cart().promo or "").upper(), 0)
     return int(subtotal() * rate / 100)
 
 
@@ -123,11 +135,11 @@ def shipping() -> int:
         return 0
     if sub >= 8000:
         return 0
-    return 180 if _chrome().ship == "express" else 80
+    return 180 if _checkout().ship == "express" else 80
 
 
 def gift_fee() -> int:
-    return 180 if _chrome().gift else 0
+    return 180 if _checkout().gift else 0
 
 
 def tax() -> int:
