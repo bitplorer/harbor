@@ -1,0 +1,7 @@
+# Prefer: pip install -e ".[channel]"
+ux-dom[fastapidev] @ git+https://github.com/bitplorer/ux-dom.git
+ux-app @ git+https://github.com/bitplorer/ux-app.git
+ux-channel @ git+https://github.com/bitplorer/ux-channel.git#subdirectory=python
+fastapi>=0.103
+uvicorn[standard]>=0.18
+python-multipart>=0.0.6

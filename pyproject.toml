@@ -1,0 +1,31 @@
+[project]
+name = "harbor"
+version = "0.1.0"
+description = "Harbor & Co. — example shop on ux-dom + ux-app + ux-channel"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "ux-dom[fastapidev] @ git+https://github.com/bitplorer/ux-dom.git",
+  "ux-app @ git+https://github.com/bitplorer/ux-app.git",
+  "fastapi>=0.103",
+  "uvicorn[standard]>=0.18",
+  "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+channel = [
+  "ux-channel @ git+https://github.com/bitplorer/ux-channel.git#subdirectory=python",
+]
+dev = ["pytest>=7.0", "httpx>=0.24"]
+
+[project.urls]
+Homepage = "https://github.com/bitplorer/harbor"
+Source = "https://github.com/bitplorer/harbor"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

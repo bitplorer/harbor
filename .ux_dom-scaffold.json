@@ -1,0 +1,9 @@
+{
+  "app_name": "harbor",
+  "template": "shop",
+  "with_tailwind": true,
+  "with_channel": true,
+  "with_hmr": true,
+  "with_csp": true,
+  "generator": "uxdom create-app"
+}

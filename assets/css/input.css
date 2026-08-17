@@ -1,0 +1,111 @@
+@import "tailwindcss";
+@source "../../app/**/*.py";
+
+@theme {
+  --font-display: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-sans: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --ease-harbor: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html,
+  body {
+    font-family: var(--font-sans);
+    background-color: #0c0a09;
+    color: #f5f5f4;
+  }
+
+  h1,
+  h2,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .product-photo {
+    outline: 1px solid rgb(255 255 255 / 0.08);
+    outline-offset: -1px;
+  }
+}
+
+#desk-progress,
+#desk-veil {
+  opacity: 0;
+  transition: opacity 140ms var(--ease-harbor);
+}
+
+body:has(.htmx-request) #desk-progress,
+body:has(.uxc-pending) #desk-progress,
+body:has([aria-busy="true"]) #desk-progress {
+  opacity: 1;
+}
+
+body:has(.htmx-request:not([data-desk="silent"])) #desk-veil,
+body:has(.uxc-pending:not([data-desk="silent"])) #desk-veil {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.desk-sweep {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(244 244 245 / 0.9), transparent);
+  animation: desk-sweep 900ms var(--ease-harbor) infinite;
+}
+
+@keyframes desk-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(280%);
+  }
+}
+
+#app.htmx-swapping,
+#app.uxc-pending {
+  opacity: 0.6;
+  filter: blur(2px);
+  transition: opacity 50ms var(--ease-harbor), filter 50ms var(--ease-harbor);
+}
+
+#app.htmx-settling {
+  animation: desk-settle 200ms var(--ease-harbor);
+}
+
+@keyframes desk-settle {
+  from {
+    opacity: 0.75;
+    filter: blur(2px);
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+.htmx-request:not([data-desk="silent"]),
+.uxc-pending:not([data-desk="silent"]) {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

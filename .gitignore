@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.local
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+assets/css/output.css
+assets/static/file/css/output.css
+assets/cache/
+node_modules/
+.DS_Store
+*.log
