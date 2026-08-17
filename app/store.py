@@ -1,4 +1,4 @@
-"""Session cart, wishlist, orders, and account."""
+"""Domain cart, wishlist, orders, and account. UI chrome lives on Components."""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -10,28 +10,11 @@ from app.catalog import PRODUCTS, get
 PROMO = {"HARBOR10": 10, "COAST20": 20}
 PAGE_SIZE = 6
 
-
+# Durable product truth only. page/slide/menu/notice/tabs stay off this bag.
 def _fresh() -> dict[str, Any]:
     return {
-        "page": "home",
-        "product_id": "",
-        "category": "all",
-        "query": "",
-        "sort": "featured",
-        "size": "",
         "cart": [],
         "wish": [],
-        "promo": "",
-        "ship": "standard",
-        "notice": None,
-        "menu_open": False,
-        "command_q": "",
-        "pdp_tab": "story",
-        "slide": 0,
-        "page_n": 1,
-        "price_max": 10000,
-        "gift": False,
-        "deliver": "",
         "account": {
             "signed_in": False,
             "name": "Shivam Agarwal",
@@ -41,17 +24,8 @@ def _fresh() -> dict[str, Any]:
             "city": "Gorakhpur",
             "pin": "273001",
         },
-        "checkout": {
-            "name": "Shivam Agarwal",
-            "email": "shivam@harbor.test",
-            "address": "Civil Lines",
-            "city": "Gorakhpur",
-            "pin": "273001",
-            "pay": "upi",
-        },
         "orders": [],
         "last_order": "",
-        "order_id": "",
     }
 
 
@@ -63,16 +37,10 @@ def reset() -> None:
     HOST.update(_fresh())
 
 
-def flash(text: str, *, level: str = "success") -> None:
-    HOST["notice"] = {"text": text, "level": level}
+def _chrome() -> Any:
+    from app.host import chrome
 
-
-def clear_notice() -> None:
-    HOST["notice"] = None
-
-
-def close_menu() -> None:
-    HOST["menu_open"] = False
+    return chrome
 
 
 def inr(n: int) -> str:
@@ -81,9 +49,10 @@ def inr(n: int) -> str:
 
 def listing() -> list[dict[str, Any]]:
     rows = list(PRODUCTS)
-    cat = HOST.get("category") or "all"
-    q = (HOST.get("query") or "").strip().lower()
-    cap = int(HOST.get("price_max") or 10000)
+    ui = _chrome()
+    cat = ui.category or "all"
+    q = (ui.query or "").strip().lower()
+    cap = int(ui.price_max or 10000)
     if cat != "all":
         rows = [p for p in rows if p["category"] == cat]
     if q:
@@ -93,7 +62,7 @@ def listing() -> list[dict[str, Any]]:
             if q in p["name"].lower() or q in p["blurb"].lower() or q in p["category"]
         ]
     rows = [p for p in rows if int(p["price"]) <= cap]
-    sort = HOST.get("sort") or "featured"
+    sort = ui.sort or "featured"
     if sort == "price_asc":
         rows.sort(key=lambda p: p["price"])
     elif sort == "price_desc":
@@ -108,7 +77,7 @@ def listing() -> list[dict[str, Any]]:
 def page_rows() -> tuple[list[dict[str, Any]], int, int]:
     rows = listing()
     total = max(1, (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE) if rows else 1
-    n = max(1, min(int(HOST.get("page_n") or 1), total))
+    n = max(1, min(int(_chrome().page_n or 1), total))
     start = (n - 1) * PAGE_SIZE
     return rows[start : start + PAGE_SIZE], n, total
 
@@ -144,7 +113,7 @@ def subtotal() -> int:
 
 
 def discount() -> int:
-    rate = PROMO.get((HOST.get("promo") or "").upper(), 0)
+    rate = PROMO.get((_chrome().promo or "").upper(), 0)
     return int(subtotal() * rate / 100)
 
 
@@ -154,15 +123,15 @@ def shipping() -> int:
         return 0
     if sub >= 8000:
         return 0
-    return 180 if HOST.get("ship") == "express" else 80
+    return 180 if _chrome().ship == "express" else 80
+
+
+def gift_fee() -> int:
+    return 180 if _chrome().gift else 0
 
 
 def tax() -> int:
     return int((subtotal() - discount()) * 0.05)
-
-
-def gift_fee() -> int:
-    return 180 if HOST.get("gift") else 0
 
 
 def total() -> int:
@@ -224,13 +193,19 @@ def wished(pid: str) -> bool:
     return pid in (HOST.get("wish") or [])
 
 
-def place_order() -> dict[str, Any] | None:
+def place_order(
+    *,
+    checkout: dict[str, Any] | None = None,
+    ship: str = "standard",
+    gift: bool = False,
+    deliver: str = "",
+) -> dict[str, Any] | None:
     lines = cart_lines()
     if not lines:
         return None
     n = len(HOST.get("orders") or []) + 1
     oid = f"HC-240{n:02d}"
-    draft = dict(HOST.get("checkout") or {})
+    draft = dict(checkout or {})
     order = {
         "id": oid,
         "at": datetime.now().strftime("%d %b · %H:%M"),
@@ -238,10 +213,10 @@ def place_order() -> dict[str, Any] | None:
         "progress": 35,
         "lines": deepcopy(lines),
         "total": total(),
-        "ship": HOST.get("ship") or "standard",
+        "ship": ship or "standard",
         "pay": draft.get("pay") or "upi",
-        "gift": bool(HOST.get("gift")),
-        "deliver": HOST.get("deliver") or "",
+        "gift": bool(gift),
+        "deliver": deliver or "",
         "address": f"{draft.get('address')}, {draft.get('city')} {draft.get('pin')}",
         "name": draft.get("name") or HOST["account"]["name"],
     }
@@ -249,8 +224,5 @@ def place_order() -> dict[str, Any] | None:
     orders.insert(0, order)
     HOST["orders"] = orders
     HOST["last_order"] = oid
-    HOST["order_id"] = oid
     HOST["cart"] = []
-    HOST["promo"] = ""
-    HOST["gift"] = False
     return order
