@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
+from ux_app.overlay import close_overlay, form_result, select_region
+
 HX_SWAP = "outerHTML swap:50ms settle:180ms"
 
 
@@ -34,7 +36,6 @@ def action_name(fn: Any) -> str:
 
 
 def wire(fn: Callable[..., Any] | str, *, silent: bool = False, **args: Any) -> dict[str, Any]:
-    """Prefer App.control(callable) after attach(); else mint + HTMX POST /act."""
     from app.host import host
 
     try:
@@ -46,10 +47,7 @@ def wire(fn: Callable[..., Any] | str, *, silent: bool = False, **args: Any) -> 
         name = bound.get("data_action") or bound.get("data-action")
     if not name:
         name = action_name(fn)
-    if bound and (
-        "data_channel_action" in bound
-        or "data-channel-action" in bound
-    ):
+    if bound and ("data_channel_action" in bound or "data-channel-action" in bound):
         if silent:
             bound = {**bound, "data_desk": "silent"}
         return bound
@@ -76,7 +74,7 @@ def act(
     className: str = "",
     silent: bool = False,
     **args: Any,
-) -> Button:
+):
     from ux_dom.ui import Button
 
     return Button(
@@ -86,3 +84,22 @@ def act(
         className=className,
         **wire(fn, silent=silent, **args),
     )
+
+
+def finish(ops, *, message: str | None = None, level: str = "success", keep_menu: bool = False):
+    from app.host import chrome
+
+    if not keep_menu:
+        chrome.menu_open = False
+    if message:
+        chrome.notice = {"text": message, "level": level}
+        extra = form_result(ok=level != "error", message=message, target="shop")
+        ops = [*list(ops or []), *extra]
+    return ops
+
+
+def go(page: str):
+    from app.host import chrome
+
+    chrome.page = page
+    return finish([*close_overlay(), *select_region("page:shop", page)])

@@ -1,7 +1,8 @@
-"""Domain cart, wishlist, orders, and account. UI chrome lives on Components."""
+"""Domain cart, wishlist, orders, account, money. No Component imports."""
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -10,7 +11,7 @@ from app.catalog import PRODUCTS, get
 PROMO = {"HARBOR10": 10, "COAST20": 20}
 PAGE_SIZE = 6
 
-# Durable product truth only. page/slide/menu/notice/tabs stay off this bag.
+
 def _fresh() -> dict[str, Any]:
     return {
         "cart": [],
@@ -37,44 +38,37 @@ def reset() -> None:
     HOST.update(_fresh())
 
 
-def _shop() -> Any:
-    from app.host import shop
-
-    return shop
-
-
-def _cart() -> Any:
-    from app.host import cart
-
-    return cart
-
-
-def _checkout() -> Any:
-    from app.host import checkout
-
-    return checkout
-
-
 def inr(n: int) -> str:
     return f"₹{int(n):,}"
 
 
-def listing() -> list[dict[str, Any]]:
+@dataclass(frozen=True)
+class ShopQuery:
+    category: str = "all"
+    query: str = ""
+    sort: str = "featured"
+    page_n: int = 1
+    price_max: int = 10000
+
+
+def listing(q: ShopQuery | None = None) -> list[dict[str, Any]]:
+    filt = q or ShopQuery()
     rows = list(PRODUCTS)
-    ui = _shop()
-    cat = ui.category or "all"
-    q = (ui.query or "").strip().lower()
-    cap = int(ui.price_max or 10000)
+    cat = filt.category or "all"
+    needle = (filt.query or "").strip().lower()
+    cap = int(filt.price_max or 10000)
     if cat != "all":
         rows = [p for p in rows if p["category"] == cat]
-    if q:
+    if needle:
         rows = [
             p
             for p in rows
-            if q in p["name"].lower() or q in p["blurb"].lower() or q in p["category"]
+            if needle in p["name"].lower()
+            or needle in p["blurb"].lower()
+            or needle in p["category"]
         ]
     rows = [p for p in rows if int(p["price"]) <= cap]
-    sort = ui.sort or "featured"
+    sort = filt.sort or "featured"
     if sort == "price_asc":
         rows.sort(key=lambda p: p["price"])
     elif sort == "price_desc":
@@ -86,10 +80,11 @@ def listing() -> list[dict[str, Any]]:
     return rows
 
 
-def page_rows() -> tuple[list[dict[str, Any]], int, int]:
-    rows = listing()
+def page_rows(q: ShopQuery | None = None) -> tuple[list[dict[str, Any]], int, int]:
+    filt = q or ShopQuery()
+    rows = listing(filt)
     total = max(1, (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE) if rows else 1
-    n = max(1, min(int(_shop().page_n or 1), total))
+    n = max(1, min(int(filt.page_n or 1), total))
     start = (n - 1) * PAGE_SIZE
     return rows[start : start + PAGE_SIZE], n, total
 
@@ -124,30 +119,37 @@ def subtotal() -> int:
     return sum(r["line"] for r in cart_lines())
 
 
-def discount() -> int:
-    rate = PROMO.get((_cart().promo or "").upper(), 0)
+def discount(promo: str = "") -> int:
+    rate = PROMO.get((promo or "").upper(), 0)
     return int(subtotal() * rate / 100)
 
 
-def shipping() -> int:
-    sub = subtotal() - discount()
+def shipping(promo: str = "", ship: str = "standard") -> int:
+    sub = subtotal() - discount(promo)
     if sub <= 0:
         return 0
     if sub >= 8000:
         return 0
-    return 180 if _checkout().ship == "express" else 80
+    return 180 if ship == "express" else 80
 
 
-def gift_fee() -> int:
-    return 180 if _checkout().gift else 0
+def gift_fee(gift: bool = False) -> int:
+    return 180 if gift else 0
 
 
-def tax() -> int:
-    return int((subtotal() - discount()) * 0.05)
+def tax(promo: str = "") -> int:
+    return int((subtotal() - discount(promo)) * 0.05)
 
 
-def total() -> int:
-    return max(0, subtotal() - discount() + shipping() + tax() + gift_fee())
+def total(promo: str = "", ship: str = "standard", gift: bool = False) -> int:
+    return max(
+        0,
+        subtotal()
+        - discount(promo)
+        + shipping(promo, ship)
+        + tax(promo)
+        + gift_fee(gift),
+    )
 
 
 def add_cart(pid: str, *, qty: int = 1, size: str = "") -> str:
@@ -211,6 +213,7 @@ def place_order(
     ship: str = "standard",
     gift: bool = False,
     deliver: str = "",
+    promo: str = "",
 ) -> dict[str, Any] | None:
     lines = cart_lines()
     if not lines:
@@ -224,7 +227,7 @@ def place_order(
         "status": "Packed",
         "progress": 35,
         "lines": deepcopy(lines),
-        "total": total(),
+        "total": total(promo=promo, ship=ship, gift=gift),
         "ship": ship or "standard",
         "pay": draft.get("pay") or "upi",
         "gift": bool(gift),

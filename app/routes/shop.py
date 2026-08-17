@@ -12,7 +12,7 @@ class Shop(Component):
     routes = ["get"]
 
     def render(self):
-        from app.views import storefront
+        from app.shell import storefront
 
         return storefront()
 

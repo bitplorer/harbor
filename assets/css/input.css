@@ -1,22 +1,53 @@
 @import "tailwindcss";
 @source "../../app/**/*.py";
+@source "/tmp/research/ux-dom/src/ux_dom/ui/**/*.py";
+@source "/tmp/research/ux-dom/src/ux_dom/dom/**/*.py";
 
 @theme {
   --font-display: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
   --font-sans: "Sora", ui-sans-serif, system-ui, sans-serif;
   --ease-harbor: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --color-ink: #0c0a09;
+  --color-paper: #f4efe6;
+  --color-linen: #e8dfd0;
+  --color-line: color-mix(in oklab, #f4efe6 10%, transparent);
+  --color-bg: #0c0a09;
+  --color-fg: #f4efe6;
+  --color-fg-muted: #a8a29e;
+  --color-fg-subtle: #78716c;
+}
+
+:root {
+  --ink: #0c0a09;
+  --paper: #f4efe6;
+  --linen: #e8dfd0;
+  --line: color-mix(in oklab, var(--paper) 10%, transparent);
+  --bg: var(--ink);
+  --fg: var(--paper);
+  --fg-muted: #a8a29e;
+  --fg-subtle: #78716c;
+  --ease-harbor: cubic-bezier(0.22, 1, 0.36, 1);
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --motion-quick: 150ms;
+  --motion-fast: 250ms;
 }
 
 @layer base {
   html,
   body {
     font-family: var(--font-sans);
-    background-color: #0c0a09;
-    color: #f5f5f4;
+    background-color: var(--ink);
+    color: var(--paper);
   }
 
   h1,
   h2,
+  h3,
   .font-display {
     font-family: var(--font-display);
     font-weight: 400;
@@ -26,6 +57,11 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--linen) 35%, transparent);
+    color: var(--paper);
   }
 }
 
@@ -39,7 +75,7 @@
 #desk-progress,
 #desk-veil {
   opacity: 0;
-  transition: opacity 140ms var(--ease-harbor);
+  transition: opacity var(--motion-quick) var(--ease-harbor);
 }
 
 body:has(.htmx-request) #desk-progress,
@@ -57,7 +93,7 @@ body:has(.uxc-pending:not([data-desk="silent"])) #desk-veil {
 .desk-sweep {
   height: 100%;
   width: 40%;
-  background: linear-gradient(90deg, transparent, rgb(244 244 245 / 0.9), transparent);
+  background: linear-gradient(90deg, transparent, rgb(244 239 230 / 0.9), transparent);
   animation: desk-sweep 900ms var(--ease-harbor) infinite;
 }
 
@@ -78,7 +114,7 @@ body:has(.uxc-pending:not([data-desk="silent"])) #desk-veil {
 }
 
 #app.htmx-settling {
-  animation: desk-settle 200ms var(--ease-harbor);
+  animation: desk-settle var(--motion-fast) var(--ease-harbor);
 }
 
 @keyframes desk-settle {

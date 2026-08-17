@@ -7,7 +7,7 @@ from ux_dom.ui import Skeleton
 
 
 class WaitChrome(Component):
-    """Hairline sweep + flashing skeleton veil while a channel action settles."""
+    """Hairline sweep + flashing skeleton veil while an action settles."""
 
     def render(self):
         bones = [
@@ -32,7 +32,7 @@ class WaitChrome(Component):
                     className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 px-4 pt-24 sm:grid-cols-3",
                 ),
                 id="desk-veil",
-                className="pointer-events-none fixed inset-0 z-[45] bg-stone-950/55 backdrop-blur-[1px]",
+                className="pointer-events-none fixed inset-0 z-[45] bg-[color-mix(in_oklab,var(--ink)_55%,transparent)] backdrop-blur-[1px]",
                 **{"aria-hidden": "true", "aria-live": "polite", "aria-label": "Updating floor"},
             ),
         )

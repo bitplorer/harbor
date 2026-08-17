@@ -1,13 +1,12 @@
 """
 ASGI entry — FastAPI is the process; Document owns the DOM.
 
-    uxdom serve --port 8080
-    # or: uxdom dev   ·   uxdom start
+    uvicorn app.main:app --host 0.0.0.0 --port 8080
 
-Assembly (no hidden builder)::
+Assembly::
 
     app = FastAPI(...)
-    document.mount(app)          # runtimes → static + middleware
+    document.mount(app)
     DirectoryRouter(...).include(app)
 """
 from __future__ import annotations
@@ -16,34 +15,34 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import settings
 from app.document import document, page
 from app.host import host
-from app.views import storefront
+from app.shell import storefront
 
 PACKAGE = Path(__file__).resolve().parent
 
-# Optional style / HMR lifecycle (kept local — not another framework)
-# When `uxdom serve` is running it sets UXDOM_TAILWIND_OWNED=1 and TailwindStyle
-# becomes a no-op so the standalone CLI is the single CSS watcher.
 _styles: list = []
 _hmr: list = []
 
 if settings.WITH_TAILWIND:
-    from ux_dom.plugins.style import TailwindStyle
+    try:
+        from ux_dom.plugins.style import TailwindStyle
 
-    _styles.append(
-        TailwindStyle(
-            settings.webassets,
-            file_path=PACKAGE / "main.py",
-            input_css=settings.INPUT_CSS,
-            output_css=settings.OUTPUT_CSS,
-            minify=not settings.DEBUG,
+        _styles.append(
+            TailwindStyle(
+                settings.webassets,
+                file_path=PACKAGE / "main.py",
+                input_css=settings.INPUT_CSS,
+                output_css=settings.OUTPUT_CSS,
+                minify=not settings.DEBUG,
+            )
         )
-    )
+    except Exception:
+        _styles = []
 
 if settings.WITH_HMR and settings.DEBUG:
     try:
@@ -51,7 +50,7 @@ if settings.WITH_HMR and settings.DEBUG:
 
         _hmr.append(
             HotReload(
-                watch_paths=[str(PACKAGE), str(settings.BASE_DIR / "assets")],
+                watch_paths=[str(PACKAGE), str(settings.ASSETS_DIR)],
             )
         )
     except Exception:
@@ -62,7 +61,7 @@ if settings.WITH_HMR and settings.DEBUG:
 async def _lifespan(application: FastAPI):
     for style in _styles:
         try:
-            await style.build(watch=settings.DEBUG)
+            await style.build(watch=False)
         except Exception:
             pass
     for hmr in _hmr:
@@ -80,7 +79,10 @@ async def _lifespan(application: FastAPI):
     for style in _styles:
         stop = getattr(style, "stop", None)
         if stop is not None:
-            await stop()
+            try:
+                await stop()
+            except Exception:
+                pass
 
 
 app = FastAPI(title=settings.APP_TITLE, debug=settings.DEBUG, lifespan=_lifespan)
@@ -92,16 +94,13 @@ try:
 except Exception:
     pass
 
-# Document is SSoT — mounts runtime static (x_element.js) + middleware (CSP, HTMX, …)
 document.mount(app)
 
-# File-based routes (DirectoryRouter)
 from ux_dom.plugins.routing import DirectoryRouting
 
 DirectoryRouting(package_dir=PACKAGE, base_directory="routes").include(app)
 
-# Compiled Tailwind + app images live under WebAssets / assets/
-css_dir = Path(settings.webassets.static.css)
+css_dir = settings.CSS_DIR
 css_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/css", StaticFiles(directory=str(css_dir), check_dir=False), name="css")
 
@@ -128,10 +127,11 @@ if settings.WITH_CHANNEL:
 
 @app.api_route("/", methods=["GET", "HEAD"])
 def _root(request: Request):
-    # StreamingRoute does not auto-add HEAD; probes need a 200 on HEAD /
     if request.method == "HEAD":
         return Response(status_code=200, media_type="text/html")
-    return RedirectResponse("/index/Index")
+    from ux_dom.response.starlette import HTMLResponse
+
+    return HTMLResponse(page(storefront(), page_title=settings.APP_TITLE))
 
 
 @app.post("/act/{name:path}")
@@ -151,8 +151,7 @@ async def act_route(name: str, request: Request):
             args[str(key)] = str(value)
     cap = args.pop("__cap", None) or request.headers.get("x-cap")
     result = host.submit(name, args, cap=cap)
-    title = settings.APP_TITLE
-    tree = page(storefront(), page_title=title)
+    tree = page(storefront(), page_title=settings.APP_TITLE)
     if not result.ok and result.kind == "dispatch_error":
         return HTMLResponse(tree, status_code=400)
     return HTMLResponse(tree)
@@ -180,7 +179,7 @@ def run() -> None:
         "app.main:app",
         host="0.0.0.0",
         port=8080,
-        reload=settings.DEBUG,
+        reload=False,
     )
 
 

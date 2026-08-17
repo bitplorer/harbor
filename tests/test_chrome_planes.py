@@ -9,6 +9,7 @@ from pathlib import Path
 from app import store
 from app.carousel import hero_at
 from app.catalog import PRODUCTS
+from app.chrome import Chrome
 from app.host import (
     PAGES,
     account,
@@ -24,9 +25,8 @@ from app.host import (
     shop,
     wish,
 )
-from app.hx import action_name
-from app.screens import Chrome, Home, Shop
-
+from app.screens import Home, Shop
+from app.wiring import action_name
 
 CHROME_KEYS = {
     "page",
@@ -49,6 +49,8 @@ CHROME_KEYS = {
     "order_id",
     "checkout",
 }
+
+APP_ROOT = Path(__file__).resolve().parents[1] / "app"
 
 
 def _submit(fn, **args):
@@ -98,10 +100,10 @@ def test_control_uses_callables():
 def test_renders_are_not_empty_action_bags():
     assert home.render is not None
     assert chrome.render is not None
-    source = Path(__file__).resolve().parents[1] / "app" / "screens.py"
-    text = source.read_text(encoding="utf-8")
-    assert "return \"\"" not in text
-    assert "return ''" not in text
+    for path in (APP_ROOT / "screens").glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert 'return ""' not in text
+        assert "return ''" not in text
 
 
 def test_menu_and_notice_are_chrome_session():
@@ -147,6 +149,7 @@ def test_checkout_happy_path_keeps_money_in_store():
     assert store.HOST["orders"]
     assert store.HOST["cart"] == []
     assert store.HOST["orders"][0]["total"] > 0
+    assert store.HOST["orders"][0]["id"] == "HC-24001"
     assert chrome.page == "confirm"
     assert "cart" not in chrome.field_specs
 
@@ -170,34 +173,47 @@ def test_components_registered():
     for key, fn in PAGES.items():
         assert inspect.ismethod(fn)
         assert fn.__name__ == "render"
+    assert confirm is not None
+    assert order is not None
+    assert account is not None
+    assert wish is not None
+
+
+def _markup_files():
+    files = [
+        APP_ROOT / "chrome.py",
+        APP_ROOT / "ui.py",
+        APP_ROOT / "shell.py",
+        *sorted((APP_ROOT / "screens").glob("*.py")),
+    ]
+    return [p for p in files if p.exists()]
 
 
 def test_no_stringly_act_in_product_markup():
-    views = Path(__file__).resolve().parents[1] / "app" / "views.py"
-    tree = ast.parse(views.read_text(encoding="utf-8"))
     hits: list[str] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        name = ""
-        if isinstance(node.func, ast.Name):
-            name = node.func.id
-        elif isinstance(node.func, ast.Attribute):
-            name = node.func.attr
-        if name not in {"act", "wire"}:
-            continue
-        if not node.args:
-            continue
-        arg = node.args[0] if name == "wire" else (node.args[1] if len(node.args) > 1 else None)
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and "." in arg.value:
-            hits.append(f"{node.lineno}:{arg.value}")
+    for path in _markup_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = ""
+            if isinstance(node.func, ast.Name):
+                name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                name = node.func.attr
+            if name not in {"act", "wire"}:
+                continue
+            if not node.args:
+                continue
+            arg = node.args[0] if name == "wire" else (node.args[1] if len(node.args) > 1 else None)
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and "." in arg.value:
+                hits.append(f"{path.name}:{node.lineno}:{arg.value}")
     assert hits == []
 
 
 def test_no_ux_channel_import_in_product():
-    root = Path(__file__).resolve().parents[1] / "app"
     hits: list[str] = []
-    for path in sorted(root.rglob("*.py")):
+    for path in sorted(APP_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

@@ -1,17 +1,15 @@
-"""App.boot, attach, region, Component registry. Actions live on screens."""
+"""App.boot, attach, region, Component registry. Composition root only."""
 from __future__ import annotations
 
 from typing import Any
 
 from ux_app import App
-from ux_app.overlay import form_result
 
-from app import store
+from app.chrome import Chrome
 from app.screens import (
     Account,
     Cart,
     Checkout,
-    Chrome,
     Confirm,
     Home,
     Order,
@@ -52,10 +50,10 @@ PAGES = {
 }
 
 
-def _storefront():
-    from app.views import storefront
+def _storefront(page: str | None = None):
+    from app.shell import storefront
 
-    return storefront()
+    return storefront(page)
 
 
 host.region(_storefront)
@@ -63,13 +61,3 @@ host.region(_storefront)
 
 def kv() -> dict[str, Any]:
     return host.world.kv
-
-
-def finish(ops, *, message: str | None = None, level: str = "success", keep_menu: bool = False):
-    if not keep_menu:
-        chrome.menu_open = False
-    if message:
-        chrome.notice = {"text": message, "level": level}
-        extra = form_result(ok=level != "error", message=message, target="shop")
-        ops = [*list(ops or []), *extra]
-    return ops

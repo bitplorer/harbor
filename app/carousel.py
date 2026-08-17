@@ -1,5 +1,4 @@
-"""Hero carousel pairing — image and title share one product id."""
-
+"""Hero carousel — image and title share one product id."""
 from __future__ import annotations
 
 from typing import Any

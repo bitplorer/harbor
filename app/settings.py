@@ -1,4 +1,4 @@
-"""App settings — paths and feature flags."""
+"""Paths and feature flags."""
 from __future__ import annotations
 
 import os
@@ -14,13 +14,10 @@ CSS_DIR = ASSETS_DIR / "css"
 INPUT_CSS = "css/input.css"
 OUTPUT_CSS = "output.css"
 
-# WebAssets: base_dir is the static root served at /css, /js, …
 webassets = WebAssets(base_dir=ASSETS_DIR, dry_run=False)
 
 APP_TITLE = "Harbor & Co."
 WITH_TAILWIND = True
-WITH_CHANNEL = True
-WITH_HMR = True
-# CSP: on by default. Profile follows DEBUG via Csp.auto() in document.py
-#   DEBUG=1 → dev (CDN + style attrs) · DEBUG=0 → prod (tight)
+WITH_CHANNEL = os.environ.get("WITH_CHANNEL", "1") not in ("0", "false", "False")
+WITH_HMR = os.environ.get("WITH_HMR", "0") not in ("0", "false", "False")
 WITH_CSP = True
