@@ -1,14 +1,31 @@
-"""Harbor chrome lives on Component Session fields, not store.HOST."""
+"""Harbor screens are Components; chrome is Session; act uses callables."""
 
 from __future__ import annotations
 
 import ast
+import inspect
 from pathlib import Path
 
 from app import store
+from app.carousel import hero_at
 from app.catalog import PRODUCTS
-from app.host import chrome, home, host
-from app.planes import Chrome, Home
+from app.host import (
+    PAGES,
+    account,
+    cart,
+    checkout,
+    chrome,
+    confirm,
+    home,
+    host,
+    order,
+    orders,
+    product,
+    shop,
+    wish,
+)
+from app.hx import action_name
+from app.screens import Chrome, Home, Shop
 
 
 CHROME_KEYS = {
@@ -34,7 +51,8 @@ CHROME_KEYS = {
 }
 
 
-def _submit(name: str, **args):
+def _submit(fn, **args):
+    name = action_name(fn)
     cap = host.mint(name, args)
     return host.submit(name, args, cap=cap)
 
@@ -49,32 +67,54 @@ def test_slide_is_plain_int_not_session_var():
     assert not hasattr(home.slide, "get")
 
 
-def test_nav_slide_keeps_image_and_title_keyed_together():
-    featured = [p for p in PRODUCTS if p.get("featured")]
-    assert len(featured) >= 2
-    _submit("nav.slide", index="1")
-    idx = int(home.slide or 0) % len(featured)
-    assert idx == 1
-    hero = featured[idx]
-    assert hero["img"] and hero["name"]
-    _submit("nav.slide", index="0")
-    other = featured[int(home.slide or 0) % len(featured)]
-    assert (other["img"], other["name"]) != (hero["img"], hero["name"])
-    assert other["id"] == featured[0]["id"]
+def test_carousel_next_prev_keeps_image_and_title_keyed_together():
+    first = hero_at(0)
+    second = hero_at(1)
+    assert first["hero"]["id"] != second["hero"]["id"]
+    assert first["card_id"] == f"hero-card-{first['hero']['id']}"
+    assert first["photo_id"] == f"hero-photo-{first['hero']['id']}"
+    _submit(home.next)
+    slot = hero_at(home.slide)
+    assert slot["hero"]["id"] == second["hero"]["id"]
+    assert slot["card_id"].endswith(slot["hero"]["id"])
+    assert slot["photo_id"].endswith(slot["hero"]["id"])
+    _submit(home.prev)
+    back = hero_at(home.slide)
+    assert back["hero"]["id"] == first["hero"]["id"]
+    assert (back["hero"]["img"], back["hero"]["name"]) == (
+        first["hero"]["img"],
+        first["hero"]["name"],
+    )
+
+
+def test_control_uses_callables():
+    attrs = host.control(home.next)
+    assert attrs["data_action"] == "home.next"
+    assert host.control(cart.add, id="x")["data_action"] == "cart.add"
+    assert host.control(chrome.toggle)["data_action"] == "chrome.toggle"
+    assert action_name(shop.browse) == "shop.browse"
+
+
+def test_renders_are_not_empty_action_bags():
+    assert home.render is not None
+    assert chrome.render is not None
+    source = Path(__file__).resolve().parents[1] / "app" / "screens.py"
+    text = source.read_text(encoding="utf-8")
+    assert "return \"\"" not in text
+    assert "return ''" not in text
 
 
 def test_menu_and_notice_are_chrome_session():
     chrome.menu_open = False
-    _submit("menu.toggle")
+    _submit(chrome.toggle)
     assert chrome.menu_open is True
-    _submit("notice.dismiss")
+    _submit(chrome.dismiss)
     assert chrome.notice is None
-    _submit("menu.close")
+    _submit(chrome.close_menu)
     assert chrome.menu_open is False
 
 
 def test_cart_stays_in_product_store():
-    store.reset()
     sku = PRODUCTS[0]["id"]
     msg = store.add_cart(sku, qty=1)
     assert "Added" in msg or "Updated" in msg
@@ -93,13 +133,65 @@ def test_host_bag_has_no_chrome_keys():
     assert "account" in store.HOST
 
 
+def test_checkout_happy_path_keeps_money_in_store():
+    sku = PRODUCTS[0]["id"]
+    store.add_cart(sku, qty=1)
+    _submit(
+        checkout.place,
+        name="Ada",
+        address="1 Dock",
+        email="ada@harbor.test",
+        city="Gorakhpur",
+        pin="273001",
+    )
+    assert store.HOST["orders"]
+    assert store.HOST["cart"] == []
+    assert store.HOST["orders"][0]["total"] > 0
+    assert chrome.page == "confirm"
+    assert "cart" not in chrome.field_specs
+
+
 def test_components_registered():
     assert isinstance(home, Home)
     assert isinstance(chrome, Chrome)
-    assert home.id == "home"
-    assert chrome.id == "chrome"
-    assert "home" in host.runtime.components
-    assert "chrome" in host.runtime.components
+    assert isinstance(shop, Shop)
+    assert set(PAGES) == {
+        "home",
+        "shop",
+        "pdp",
+        "cart",
+        "checkout",
+        "confirm",
+        "orders",
+        "order",
+        "wish",
+        "account",
+    }
+    for key, fn in PAGES.items():
+        assert inspect.ismethod(fn)
+        assert fn.__name__ == "render"
+
+
+def test_no_stringly_act_in_product_markup():
+    views = Path(__file__).resolve().parents[1] / "app" / "views.py"
+    tree = ast.parse(views.read_text(encoding="utf-8"))
+    hits: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = ""
+        if isinstance(node.func, ast.Name):
+            name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            name = node.func.attr
+        if name not in {"act", "wire"}:
+            continue
+        if not node.args:
+            continue
+        arg = node.args[0] if name == "wire" else (node.args[1] if len(node.args) > 1 else None)
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and "." in arg.value:
+            hits.append(f"{node.lineno}:{arg.value}")
+    assert hits == []
 
 
 def test_no_ux_channel_import_in_product():

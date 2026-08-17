@@ -18,20 +18,31 @@ Scaffolded with `uxdom create-app` (template: `shop`).
 from ux_app import App, Component, Session
 
 host = App.boot(title="Harbor & Co.", strict=False)
+home = host.add(Home)
+chrome = host.add(Chrome)
 host.region(storefront)     # Channel slot app.root
 host.attach(app)            # live wire, no ux_channel import
-host.control("cart.add", id=sku)
+host.control(cart.add, id=sku)   # callable, not "cart.add"
 
 class Home(Component):
     id = "home"
     slide: int = Session(0)   # value, not a SessionVar
 
+    def next(self, ctx):
+        self.slide = int(self.slide or 0) + 1
+
+    def render(self):
+        ...
+
 class Chrome(Component):
     id = "chrome"
     menu_open: bool = Session(False)
+
+    def render(self):
+        return topbar(...)
 ```
 
-UI chrome (`page`, `slide`, `menu_open`, `notice`, `pdp_tab`, `command_q`, filters) lives on Component Session fields. Cart lines, orders, wish, stock, and prices stay in the product store.
+UI chrome lives on Component Session fields (`Home.slide`, `Chrome.page` / `menu_open` / `notice`, shop filters, PDP tabs, checkout draft). Cart lines, orders, wish, stock, and prices stay in the product store. `act` / `wire` take bound methods.
 
 ## Quick start
 
@@ -61,9 +72,10 @@ app/
   main.py           # FastAPI + document.mount + DirectoryRouter + /act
   document.py       # Document.use(XElement, Htmx, Channel, Csp)
   settings.py       # WebAssets + feature flags
-  host.py           # ux-app Actions + Home/Chrome Session + host.region(storefront)
-  planes.py         # Home.slide + Chrome Session fields
-  hx.py             # App.control → Channel attrs (HTMX fallback)
+  host.py           # App.boot, host.add(screens), host.region, finish
+  screens.py        # Home/Chrome/Shop/Cart/… methods + render()
+  carousel.py       # hero card/photo ids keyed by product
+  hx.py             # App.control(callable) → Channel attrs (HTMX fallback)
   views.py          # storefront markup (ux-dom UI kit)
   components/       # Shell + WaitChrome
   routes/           # file routes: Index, Shop, Cart, …

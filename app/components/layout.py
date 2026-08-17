@@ -10,12 +10,12 @@ class Shell(Component):
     """Frame that HTMX replaces. Wait chrome stays outside this node."""
 
     def render(self, *children, active: str = "home"):
-        from app.host import host
-        from app.views import overlay, toasts, topbar
+        from app.host import chrome, host
+        from app.views import overlay, toasts
 
         return stamp_region(
             div(
-                topbar(active),
+                chrome.render(),
                 toasts(),
                 div(*children, className="mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6"),
                 overlay(),

@@ -48,8 +48,21 @@ from ux_dom.ui import (
 from ux_dom.ui.tokens import cn, surface, type_scale
 
 from app import store
+from app.carousel import hero_at
 from app.catalog import CATEGORIES, PRODUCTS, get, related
-from app.host import chrome, home, kv
+from app.host import (
+    PAGES,
+    account,
+    cart,
+    checkout,
+    chrome,
+    home,
+    kv,
+    orders,
+    product,
+    shop,
+    wish,
+)
 from app.hx import act, hx, wire
 from ux_app.ui import stamp_region
 
@@ -58,18 +71,7 @@ def storefront(page: str | None = None) -> Any:
     from app.components.layout import Shell
 
     key = page or chrome.page or "home"
-    body = {
-        "home": _home,
-        "shop": _shop,
-        "pdp": _pdp,
-        "cart": _cart_page,
-        "checkout": _checkout,
-        "confirm": _confirm,
-        "orders": _orders,
-        "order": _order,
-        "wish": _wish,
-        "account": _account,
-    }.get(key, _home)()
+    body = PAGES.get(key, home.render)()
     return Shell(body, active=key)
 
 
@@ -83,25 +85,25 @@ def topbar(active: str = "home") -> Any:
         button(
             type="button",
             className="fixed inset-0 z-40 bg-transparent",
-            **wire("menu.close", silent=True),
+            **wire(chrome.close_menu, silent=True),
             **{"aria-label": "Close menu"},
         )
         if menu_open
         else None,
         div(
-            act("Harbor & Co.", "nav.go", variant="ghost", size="sm", className="font-display px-1 text-lg", page="home"),
+            act("Harbor & Co.", chrome.go, variant="ghost", size="sm", className="font-display px-1 text-lg", page="home"),
             div(
-                act("Shop", "nav.shop", variant="ghost", size="sm", category="all", className="hidden sm:inline-flex"),
-                act("Find", "command.open", variant="outline", size="sm"),
-                act(f"Saved {saved}" if saved else "Saved", "wish.open", variant="ghost", size="sm", className="hidden sm:inline-flex"),
-                act(f"Bag {bag}" if bag else "Bag", "cart.open", variant="secondary", size="sm"),
+                act("Shop", shop.browse, variant="ghost", size="sm", category="all", className="hidden sm:inline-flex"),
+                act("Find", chrome.find, variant="outline", size="sm"),
+                act(f"Saved {saved}" if saved else "Saved", wish.show, variant="ghost", size="sm", className="hidden sm:inline-flex"),
+                act(f"Bag {bag}" if bag else "Bag", cart.open, variant="secondary", size="sm"),
                 div(
                     Button(
                         Avatar(AvatarFallback(initials), className="h-8 w-8 text-xs"),
                         variant="ghost",
                         size="icon",
                         className="relative z-50 rounded-full",
-                        **wire("menu.toggle", silent=True),
+                        **wire(chrome.toggle, silent=True),
                     ),
                     _menu(menu_open, acc),
                     className="relative z-50",
@@ -118,12 +120,12 @@ def topbar(active: str = "home") -> Any:
 
 def _menu(open_: bool, acc: dict[str, Any]) -> Any:
     items = [
-        act("Account", "account.open", variant="ghost", size="sm", className="w-full justify-start"),
-        act("Orders", "orders.open", variant="ghost", size="sm", className="w-full justify-start"),
-        act("Bag", "cart.page", variant="ghost", size="sm", className="w-full justify-start"),
+        act("Account", account.show, variant="ghost", size="sm", className="w-full justify-start"),
+        act("Orders", orders.show, variant="ghost", size="sm", className="w-full justify-start"),
+        act("Bag", cart.show, variant="ghost", size="sm", className="w-full justify-start"),
         act(
             "Sign out" if acc["signed_in"] else "Sign in",
-            "account.signout" if acc["signed_in"] else "account.open",
+            account.signout if acc["signed_in"] else account.show,
             variant="ghost",
             size="sm",
             className="w-full justify-start",
@@ -144,10 +146,10 @@ def toasts() -> Any:
         return div(id="notices", className="hidden")
     return div(
         ToastHost(items=[{"text": notice.get("text") or "", "level": notice.get("level") or "info"}], className="min-w-0 flex-1"),
-        act("Dismiss", "notice.dismiss", variant="ghost", size="sm", silent=True),
+        act("Dismiss", chrome.dismiss, variant="ghost", size="sm", silent=True),
         id="toast-stack",
         className="pointer-events-auto fixed inset-x-3 top-16 z-40 flex items-start gap-1 sm:inset-x-auto sm:right-4 sm:w-80",
-        hx_post="/act/notice.dismiss",
+        hx_post="/act/chrome.dismiss",
         hx_trigger="load delay:3.2s",
         **hx(silent=True),
     )
@@ -168,7 +170,7 @@ def overlay() -> Any:
             open=open_,
             title="How it wears",
             body=p("S easy, M true, L over a knit. The overshirt is unlined so it layers.", className="text-sm text-stone-300"),
-            footer=act("Close", "ui.close", variant="outline", silent=True),
+            footer=act("Close", chrome.close_ui, variant="outline", silent=True),
         )
     return Dialog(open=False, id="overlay")
 
@@ -181,14 +183,14 @@ def _find(open_: bool) -> Any:
     if q:
         rows = [p for p in PRODUCTS if q in p["name"].lower() or q in p["blurb"].lower()]
     items = [
-        act(f"{p['name']}  {store.inr(p['price'])}", "product.open", variant="ghost", size="sm", className="w-full justify-start", id=p["id"])
+        act(f"{p['name']}  {store.inr(p['price'])}", product.open, variant="ghost", size="sm", className="w-full justify-start", id=p["id"])
         for p in rows[:8]
     ] or [p("No match", className="px-2 py-3 text-sm text-stone-500")]
     return div(
         button(
             type="button",
             className="fixed inset-0 z-[60] bg-black/60",
-            **wire("ui.close", silent=True),
+            **wire(chrome.close_ui, silent=True),
             **{"aria-label": "Close find"},
         ),
         div(
@@ -211,28 +213,34 @@ def _find(open_: bool) -> Any:
     )
 
 
-def _home() -> Any:
+def home_body() -> Any:
     featured = [p for p in PRODUCTS if p.get("featured")]
     fresh = [p for p in PRODUCTS if p.get("new")]
-    idx = int(home.slide or 0) % max(1, len(featured))
-    hero = featured[idx] if featured else PRODUCTS[0]
+    slot = hero_at(home.slide)
+    hero = slot["hero"]
+    idx = slot["idx"]
     carousel = stamp_region(
         div(
-            img(src=hero["img"], alt=hero["name"], className="product-photo h-48 w-full rounded-2xl object-cover sm:h-64"),
+            img(
+                src=hero["img"],
+                alt=hero["name"],
+                id=slot["photo_id"],
+                className="product-photo h-48 w-full rounded-2xl object-cover sm:h-64",
+            ),
             div(
                 p(hero["name"], className="font-display text-2xl text-stone-50"),
                 p(hero["blurb"], className="mt-1 text-sm text-stone-400"),
                 div(
-                    act("Prev", "nav.slide", variant="outline", size="sm", index=str((idx - 1) % len(featured))),
-                    act("View", "product.open", size="sm", id=hero["id"]),
-                    act("Next", "nav.slide", variant="outline", size="sm", index=str((idx + 1) % len(featured))),
+                    act("Prev", home.prev, variant="outline", size="sm"),
+                    act("View", product.open, size="sm", id=hero["id"]),
+                    act("Next", home.next, variant="outline", size="sm"),
                     className="mt-4 flex flex-wrap gap-2",
                 ),
                 className="mt-4",
             ),
             className=cn(surface["l1"], "rounded-2xl p-3 sm:p-4"),
-            id="carousel-hero",
-            **{"data-slide": str(idx), "data-sku": hero["id"]},
+            id=slot["card_id"],
+            **{"data-hero": hero["id"], "data-slide": str(idx)},
         ),
         uid="carousel:hero",
     )
@@ -250,8 +258,8 @@ def _home() -> Any:
                     "Goods for the house and the coast.",
                     "Linen, clay, oak, and waxed canvas. Made to be used.",
                     actions=div(
-                        act("Shop the floor", "nav.shop", category="all"),
-                        act("New this week", "shop.sort", variant="outline", sort="new"),
+                        act("Shop the floor", shop.browse, category="all"),
+                        act("New this week", shop.sort_by, variant="outline", sort="new"),
                         className="flex flex-wrap gap-2",
                     ),
                     className="mt-4",
@@ -283,7 +291,7 @@ def _cat_tile(key: str, label_text: str) -> Any:
         span(label_text, className="font-display text-xl text-stone-50"),
         span(f"{n} pieces", className="mt-1 block text-xs text-stone-500"),
         type="button",
-        **wire("nav.shop", category=key),
+        **wire(shop.browse, category=key),
         className=cn(surface["l1"], "rounded-2xl p-4 text-left min-h-[5.5rem]"),
     )
 
@@ -306,7 +314,7 @@ def _card(item: dict[str, Any]) -> Any:
         button(
             img(src=item["img"], alt=item["name"], className="product-photo aspect-[4/3] w-full object-cover"),
             type="button",
-            **wire("product.open", id=item["id"]),
+            **wire(product.open, id=item["id"]),
             className="block w-full overflow-hidden rounded-2xl",
         ),
         p(item["name"], className="mt-3 text-sm text-stone-100"),
@@ -315,23 +323,23 @@ def _card(item: dict[str, Any]) -> Any:
     )
 
 
-def _shop() -> Any:
+def shop_body() -> Any:
     rows, page_n, pages = store.page_rows()
-    cat = chrome.category or "all"
-    sort = chrome.sort or "featured"
-    q = chrome.query or ""
-    cap = int(chrome.price_max or 10000)
+    cat = shop.category or "all"
+    sort = shop.sort or "featured"
+    q = shop.query or ""
+    cap = int(shop.price_max or 10000)
     return div(
         PageHeader("The floor", "Linen to waxed canvas. Filter, then walk it.", className="mb-6"),
         form(
             Input(name="q", value=q, placeholder="Search the floor", className="min-w-0 flex-1"),
             Button("Search", type="submit", variant="secondary", size="sm"),
-            **wire("shop.search"),
+            **wire(shop.search),
             className="flex gap-2",
         ),
         div(
             *[
-                act(label_text, "nav.shop", variant="secondary" if cat == key else "ghost", size="sm", className="rounded-full", category=key)
+                act(label_text, shop.browse, variant="secondary" if cat == key else "ghost", size="sm", className="rounded-full", category=key)
                 for key, label_text in CATEGORIES
             ],
             className="mt-4 flex flex-wrap gap-2",
@@ -345,24 +353,24 @@ def _shop() -> Any:
                 className="mt-1",
             ),
             Button("Apply", type="submit", variant="ghost", size="sm", className="mt-2"),
-            **wire("shop.sort"),
+            **wire(shop.sort_by),
             className="mt-4 max-w-xs",
         ),
         form(
             Label(f"Up to {store.inr(cap)}"),
             Slider(name="price", min=1000, max=10000, step=500, value=cap, show_value=True, className="mt-2"),
             Button("Apply", type="submit", variant="outline", size="sm", className="mt-3"),
-            **wire("shop.price"),
+            **wire(shop.price),
             className="mt-5 max-w-md",
         ),
         p(f"{len(store.listing())} pieces", className=cn(type_scale["caption"], "mt-4")),
         div(*[_card(p) for p in rows], className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-3")
         if rows
-        else EmptyState(title="Nothing on that search", description="Clear it and walk the floor again.", action=act("Clear", "shop.search", variant="outline", q="")),
+        else EmptyState(title="Nothing on that search", description="Clear it and walk the floor again.", action=act("Clear", shop.search, variant="outline", q="")),
         div(
-            act("Prev", "nav.page", variant="outline", size="sm", page=str(page_n - 1), className="" if page_n > 1 else "pointer-events-none opacity-40"),
+            act("Prev", shop.page, variant="outline", size="sm", page=str(page_n - 1), className="" if page_n > 1 else "pointer-events-none opacity-40"),
             span(f"{page_n} / {pages}", className="px-3 text-sm tabular-nums text-stone-400"),
-            act("Next", "nav.page", variant="outline", size="sm", page=str(page_n + 1), className="" if page_n < pages else "pointer-events-none opacity-40"),
+            act("Next", shop.page, variant="outline", size="sm", page=str(page_n + 1), className="" if page_n < pages else "pointer-events-none opacity-40"),
             className="mt-8 flex items-center justify-center gap-2",
         )
         if rows
@@ -370,14 +378,14 @@ def _shop() -> Any:
     )
 
 
-def _pdp() -> Any:
-    item = get(chrome.product_id or "")
+def pdp_body() -> Any:
+    item = get(product.product_id or "")
     if not item:
-        return EmptyState(title="Gone", description="That piece left the floor.", action=act("Shop", "nav.shop", category="all"))
+        return EmptyState(title="Gone", description="That piece left the floor.", action=act("Shop", shop.browse, category="all"))
     sold = item["stock"] <= 0
     saved = store.wished(item["id"])
-    size = chrome.size or ""
-    tab = chrome.pdp_tab or "story"
+    size = product.size or ""
+    tab = product.pdp_tab or "story"
     story = p(item["desc"], className="text-sm leading-relaxed text-stone-300")
     reviews = div(
         *[
@@ -392,7 +400,7 @@ def _pdp() -> Any:
     care = div(*[_spec(a, b) for a, b in item["specs"]], className="grid grid-cols-3 gap-3")
     return div(
         Breadcrumb(items=[("Home", "/index/Index"), ("Shop", "/shop/Shop"), (item["name"], None)]),
-        act("← Floor", "nav.shop", variant="ghost", size="sm", category=item["category"], className="mt-3"),
+        act("← Floor", shop.browse, variant="ghost", size="sm", category=item["category"], className="mt-3"),
         Alert(AlertTitle("Waiting on the next pour"), AlertDescription("This piece is sold through. Save it and we will write."), variant="warning", className="mt-4")
         if sold
         else None,
@@ -407,16 +415,16 @@ def _pdp() -> Any:
                 ),
                 _sizes(item, size) if item.get("sizes") else None,
                 div(
-                    act("Add to bag", "cart.add", id=item["id"], className="flex-1") if not sold else Button("Notify me", disabled=True),
-                    act("Saved" if saved else "Save", "wish.toggle", variant="outline", id=item["id"]),
-                    act("Size guide", "guide.open", variant="ghost", id=item["id"]) if item.get("sizes") else None,
+                    act("Add to bag", cart.add, id=item["id"], className="flex-1") if not sold else Button("Notify me", disabled=True),
+                    act("Saved" if saved else "Save", wish.toggle, variant="outline", id=item["id"]),
+                    act("Size guide", product.guide, variant="ghost", id=item["id"]) if item.get("sizes") else None,
                     className="mt-6 flex flex-wrap gap-2",
                 ),
                 stamp_region(
                     div(
                         div(
                             *[
-                                act(label, "pdp.tab", variant="secondary" if tab == key else "ghost", size="sm", tab=key)
+                                act(label, product.tab, variant="secondary" if tab == key else "ghost", size="sm", tab=key)
                                 for key, label in (("story", "Story"), ("reviews", "Notes"), ("care", "Care"))
                             ],
                             className="mt-8 flex flex-wrap gap-2",
@@ -442,7 +450,7 @@ def _sizes(item: dict[str, Any], current: str) -> Any:
         p("Size", className=cn(type_scale["caption"], "mb-2")),
         div(
             *[
-                act(s, "product.size", variant="secondary" if current == s else "outline", size="sm", opt=s)
+                act(s, product.size_set, variant="secondary" if current == s else "outline", size="sm", opt=s)
                 for s in item["sizes"]
             ],
             className="flex flex-wrap gap-2",
@@ -458,7 +466,7 @@ def _spec(k: str, v: str) -> Any:
     )
 
 
-def _cart_page() -> Any:
+def cart_body() -> Any:
     return div(
         PageHeader("Bag", "Linen and clay wait at the bench.", className="mb-6"),
         _cart_body(page=True),
@@ -471,20 +479,20 @@ def _cart_body(*, page: bool) -> Any:
         return EmptyState(
             title="Bag is empty",
             description="Walk the floor. Linen and clay are waiting.",
-            action=act("Shop", "nav.shop", category="all"),
+            action=act("Shop", shop.browse, category="all"),
         )
     return div(
         div(*[_line(r) for r in lines], className="divide-y divide-stone-800"),
         _totals(),
         form(
-            Input(name="code", placeholder="HARBOR10 or COAST20", value=chrome.promo or ""),
+            Input(name="code", placeholder="HARBOR10 or COAST20", value=cart.promo or ""),
             Button("Apply", type="submit", variant="outline", size="sm"),
-            **wire("promo.apply"),
+            **wire(cart.promo_apply),
             className="mt-4 flex gap-2",
         ),
         div(
-            act("Checkout", "checkout.start"),
-            act("Keep shopping", "nav.shop", variant="ghost", category="all") if page else act("Close", "ui.close", variant="ghost", silent=True),
+            act("Checkout", checkout.start),
+            act("Keep shopping", shop.browse, variant="ghost", category="all") if page else act("Close", chrome.close_ui, variant="ghost", silent=True),
             className="mt-5 flex flex-wrap gap-2",
         ),
     )
@@ -497,10 +505,10 @@ def _line(r: dict[str, Any]) -> Any:
             p(r["name"], className="text-sm text-stone-100"),
             p(f"{store.inr(r['price'])}" + (f" · {r['size']}" if r["size"] else ""), className="text-xs text-stone-500"),
             div(
-                act("–", "cart.qty", variant="outline", size="sm", id=r["id"], qty=str(r["qty"] - 1), opt=r["size"]),
+                act("–", cart.qty, variant="outline", size="sm", id=r["id"], qty=str(r["qty"] - 1), opt=r["size"]),
                 span(str(r["qty"]), className="min-w-[1.5rem] text-center text-sm tabular-nums"),
-                act("+", "cart.qty", variant="outline", size="sm", id=r["id"], qty=str(r["qty"] + 1), opt=r["size"]),
-                act("Remove", "cart.remove", variant="ghost", size="sm", id=r["id"], opt=r["size"]),
+                act("+", cart.qty, variant="outline", size="sm", id=r["id"], qty=str(r["qty"] + 1), opt=r["size"]),
+                act("Remove", cart.remove, variant="ghost", size="sm", id=r["id"], opt=r["size"]),
                 className="mt-2 flex items-center gap-2",
             ),
             className="min-w-0 flex-1",
@@ -532,10 +540,10 @@ def _totals() -> Any:
     )
 
 
-def _checkout() -> Any:
-    d = chrome.checkout if isinstance(chrome.checkout, dict) else {}
+def checkout_body() -> Any:
+    d = checkout.checkout if isinstance(checkout.checkout, dict) else {}
     if not store.cart_lines():
-        return EmptyState(title="Nothing to check out", action=act("Shop", "nav.shop", category="all"))
+        return EmptyState(title="Nothing to check out", action=act("Shop", shop.browse, category="all"))
     return div(
         PageHeader("Checkout", "We pack from the Gorakhpur floor.", className="mb-6"),
         Card(
@@ -556,10 +564,10 @@ def _checkout() -> Any:
                             RadioGroup(
                                 name="ship",
                                 options=[("standard", "Standard · ₹80 or free over ₹8,000"), ("express", "Express · ₹180")],
-                                value=chrome.ship or "standard",
+                                value=checkout.ship or "standard",
                             ),
                         ),
-                        div(Label("Deliver on"), DatePicker(name="deliver", value=chrome.deliver or ""), className="mt-4"),
+                        div(Label("Deliver on"), DatePicker(name="deliver", value=checkout.deliver or ""), className="mt-4"),
                         div(
                             Label("Pay"),
                             RadioGroup(name="pay", options=[("upi", "UPI"), ("card", "Card"), ("cod", "Cash on delivery")], value=d.get("pay") or "upi"),
@@ -567,7 +575,7 @@ def _checkout() -> Any:
                         ),
                         div(
                             Label("Gift wrap"),
-                            Switch(name="gift", checked=bool(chrome.gift), value="gift"),
+                            Switch(name="gift", checked=bool(checkout.gift), value="gift"),
                             className="mt-4 flex items-center justify-between",
                         ),
                         title="How it arrives",
@@ -577,10 +585,10 @@ def _checkout() -> Any:
                     _totals(),
                     div(
                         Button("Place order", type="submit"),
-                        act("Back to bag", "cart.page", variant="ghost"),
+                        act("Back to bag", cart.show, variant="ghost"),
                         className="mt-6 flex flex-wrap gap-2",
                     ),
-                    **wire("checkout.place"),
+                    **wire(checkout.place),
                 )
             ),
             className="max-w-xl",
@@ -588,7 +596,7 @@ def _checkout() -> Any:
     )
 
 
-def _confirm() -> Any:
+def confirm_body() -> Any:
     oid = store.HOST.get("last_order") or ""
     order = next((o for o in store.HOST["orders"] if o["id"] == oid), None)
     return div(
@@ -603,19 +611,19 @@ def _confirm() -> Any:
             className="max-w-md",
         ),
         div(
-            act("Track order", "order.show", id=oid),
-            act("Keep shopping", "nav.shop", variant="outline", category="all"),
+            act("Track order", orders.detail, id=oid),
+            act("Keep shopping", shop.browse, variant="outline", category="all"),
             className="mt-6 flex flex-wrap gap-2",
         ),
     )
 
 
-def _orders() -> Any:
+def orders_body() -> Any:
     rows = store.HOST.get("orders") or []
     if not rows:
         return div(
             PageHeader("Orders", "The house book.", className="mb-6"),
-            EmptyState(title="No orders yet", description="Place one from the bag.", action=act("Shop", "nav.shop", category="all")),
+            EmptyState(title="No orders yet", description="Place one from the bag.", action=act("Shop", shop.browse, category="all")),
         )
     return div(
         PageHeader("Orders", "The house book.", className="mb-6"),
@@ -632,7 +640,7 @@ def _orders() -> Any:
                 TableBody(
                     *[
                         TableRow(
-                            TableCell(act(o["id"], "order.show", variant="ghost", size="sm", id=o["id"])),
+                            TableCell(act(o["id"], orders.detail, variant="ghost", size="sm", id=o["id"])),
                             TableCell(o["at"], className="text-stone-400"),
                             TableCell(Badge(o["status"], variant="secondary")),
                             TableCell(store.inr(o["total"]), className="text-right tabular-nums"),
@@ -646,13 +654,13 @@ def _orders() -> Any:
     )
 
 
-def _order() -> Any:
-    oid = chrome.order_id or ""
+def order_body() -> Any:
+    oid = orders.order_id or ""
     order = next((o for o in store.HOST["orders"] if o["id"] == oid), None)
     if not order:
-        return EmptyState(title="Order missing", action=act("Orders", "orders.open"))
+        return EmptyState(title="Order missing", action=act("Orders", orders.show))
     return div(
-        act("← Orders", "orders.open", variant="ghost", size="sm"),
+        act("← Orders", orders.show, variant="ghost", size="sm"),
         PageHeader(order["id"], f"{order['status']} · {order['at']} · {order['pay'].upper()}", className="mt-3"),
         p(order["address"], className="mt-1 text-sm text-stone-500"),
         Progress(value=order.get("progress") or 35, className="mt-4 max-w-md"),
@@ -672,18 +680,18 @@ def _order() -> Any:
     )
 
 
-def _wish() -> Any:
+def wish_body() -> Any:
     ids = store.HOST.get("wish") or []
     rows = [p for p in PRODUCTS if p["id"] in ids]
     return div(
         PageHeader("Saved", "Pieces kept aside.", className="mb-6"),
-        EmptyState(title="Nothing saved", description="Heart a piece from the floor.", action=act("Shop", "nav.shop", category="all"))
+        EmptyState(title="Nothing saved", description="Heart a piece from the floor.", action=act("Shop", shop.browse, category="all"))
         if not rows
         else div(*[_card(p) for p in rows], className="grid grid-cols-2 gap-4 lg:grid-cols-3"),
     )
 
 
-def _account() -> Any:
+def account_body() -> Any:
     acc = store.HOST["account"]
     if not acc["signed_in"]:
         return div(
@@ -694,7 +702,7 @@ def _account() -> Any:
                         div(Label("Name"), Input(name="name", value=acc["name"])),
                         div(Label("Email"), Input(name="email", value=acc["email"]), className="mt-3"),
                         Button("Enter the house", type="submit", className="mt-5"),
-                        **wire("account.signin"),
+                        **wire(account.signin),
                     ),
                     className="p-5",
                 ),
@@ -713,9 +721,9 @@ def _account() -> Any:
             className="max-w-md",
         ),
         div(
-            act("Orders", "orders.open"),
-            act("Saved", "wish.open", variant="outline"),
-            act("Sign out", "account.signout", variant="ghost"),
+            act("Orders", orders.show),
+            act("Saved", wish.show, variant="outline"),
+            act("Sign out", account.signout, variant="ghost"),
             className="mt-6 flex flex-wrap gap-2",
         ),
     )
