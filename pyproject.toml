@@ -1,6 +1,6 @@
 [project]
 name = "harbor"
-version = "0.1.0"
+version = "0.1.1"
 description = "Harbor & Co. — example shop on ux-dom + ux-app + ux-channel"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,7 +17,14 @@ dependencies = [
 channel = [
   "ux-channel @ git+https://github.com/bitplorer/ux-channel.git#subdirectory=python",
 ]
-dev = ["pytest>=7.0", "httpx>=0.24"]
+behavior = [
+  "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git",
+]
+dev = [
+  "pytest>=7.0",
+  "httpx>=0.24",
+  "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git",
+]
 
 [project.urls]
 Homepage = "https://github.com/bitplorer/harbor"

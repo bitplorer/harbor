@@ -13,7 +13,7 @@ from app.catalog import get
 
 try:
     from ux_behavior import Behavior, Component, action, go, notify, open
-except ImportError:  # pragma: no cover - pilot optional
+except ImportError:  # pragma: no cover
     Behavior = None  # type: ignore
     Component = object  # type: ignore
 
@@ -34,8 +34,6 @@ except ImportError:  # pragma: no cover - pilot optional
 
 
 class BehaviorCart(Component):
-    """ux-behavior twin of harbor bag.Cart methods."""
-
     id = "cart"
 
     def __init__(self) -> None:
@@ -45,9 +43,7 @@ class BehaviorCart(Component):
         lines = store.cart_lines()
         if not lines:
             return "<div id='cart'><p>Bag is empty</p></div>"
-        body = "".join(
-            f"<li>{r['name']} × {r['qty']}</li>" for r in lines
-        )
+        body = "".join(f"<li>{r['name']} × {r['qty']}</li>" for r in lines)
         return f"<div id='cart'><ul>{body}</ul><p>promo={self.promo}</p></div>"
 
     @action(caps=())
@@ -96,12 +92,3 @@ class BehaviorCart(Component):
         return list(open("sheet", key="cart")) + [
             notify(msg, level="info" if self.promo else "error")
         ]
-
-
-def build_behavior_app(*, title: str = "Harbor pilot") -> Any:
-    """Build a Behavior root with the pilot Cart registered."""
-    if Behavior is None:
-        raise ImportError("ux-behavior is not installed")
-    app = Behavior.boot(title=title)
-    app.add(BehaviorCart)
-    return app

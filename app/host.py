@@ -36,6 +36,15 @@ account = host.add(Account)
 
 checkout._reset_draft()
 
+# Optional parallel ux-behavior root (does not replace host).
+behavior_host = None
+try:
+    from app.pilot import register_pilot
+
+    behavior_host = register_pilot(host)
+except Exception:
+    behavior_host = None
+
 PAGES = {
     "home": home.render,
     "shop": shop.render,

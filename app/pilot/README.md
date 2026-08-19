@@ -1,14 +1,25 @@
-# Harbor × ux-behavior pilot
+# Harbor × ux-behavior pilot (depth)
 
-Parallel author seat for **Cart** only. Live storefront stays on **ux-app**.
+Parallel author seat for **Cart** + **Chrome** close/menu. Live storefront stays on **ux-app**.
 
-## Enable
+## Install (CI / dev)
 
 ```bash
-pip install "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git"
-# optional live wire
-pip install "ux-channel @ git+https://github.com/bitplorer/ux-channel.git#subdirectory=python"
+pip install -e ".[dev]"   # includes ux-behavior
+# or
+pip install -e ".[behavior]"
 ```
+
+## Dual-boot flag
+
+```bash
+export HARBOR_BEHAVIOR_PILOT=1
+# then import app.host — sets app.host.behavior_host when available
+```
+
+Default is **off**. ux-app `host` is never replaced.
+
+## In-process
 
 ```python
 from app.pilot import build_behavior_app
@@ -16,26 +27,21 @@ from ux_behavior.local import LocalRuntime
 
 app = build_behavior_app()
 rt = LocalRuntime.bind(app)
-ops = rt.call("cart", "add", id="linen-scarf", qty="1")
+rt.call("cart", "add", id="…", qty="1")
+rt.call("chrome", "close_ui")
 ```
 
 ## Mapping
 
-| bag.Cart (ux-app) | pilot BehaviorCart |
-|-------------------|--------------------|
-| `finish(open_overlay("sheet", key="cart"), message=…)` | `open("sheet", key="cart")` + `notify(…)` |
-| `go("cart")` | `go("/cart")` |
-| `Session` promo | instance `self.promo` |
-| shared `app.store` | same |
+| ux-app | ux-behavior pilot |
+|--------|-------------------|
+| `finish(open_overlay("sheet"), message=…)` | `open("sheet", key="cart")` + `notify` |
+| `close_overlay()` | `close()` |
+| `select_region("page:shop", page)` | `select("page:shop", page)` |
+| `Session` fields | instance attrs + dirty projection |
 
-## Not switched yet
+## Tests
 
-- `app/host.py` still `App.boot` from ux-app
-- Screens, chrome, HTMX `act`/`wire` still ux-app
-- Full cutover needs Host control/mint path on Behavior
-
-## Next pilot steps
-
-1. In-process tests against `BehaviorCart` + `store`
-2. Optional `HARBOR_BEHAVIOR_PILOT=1` dual register (later)
-3. Port Chrome close/menu after Cart is stable
+```bash
+pytest tests/test_behavior_pilot.py -q
+```
