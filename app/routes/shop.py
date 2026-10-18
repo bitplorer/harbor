@@ -1,4 +1,4 @@
-"""Shop catalog — file route /shop/Shop."""
+"""Shop catalog — GET /shop (ux-compose DirectoryRoutes: URL = file path)."""
 from __future__ import annotations
 
 from ux_dom import Component
@@ -9,13 +9,5 @@ __all__ = ["Shop"]
 
 
 class Shop(Component):
-    routes = ["get"]
-
     def render(self):
-        from app.shell import storefront
-
-        return storefront()
-
-    @classmethod
-    def get(cls):
         return show("shop", "Shop · Harbor & Co.")

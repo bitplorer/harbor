@@ -105,7 +105,7 @@ class Product(Component):
                 className="mt-5",
             )
         return div(
-            Breadcrumb(items=[("Home", "/index/Index"), ("Shop", "/shop/Shop"), (item["name"], None)]),
+            Breadcrumb(items=[("Home", "/"), ("Shop", "/shop"), (item["name"], None)]),
             act("← Floor", shop.browse, variant="ghost", size="sm", category=item["category"], className="mt-3"),
             Alert(
                 AlertTitle("Waiting on the next pour"),
