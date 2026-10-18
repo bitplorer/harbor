@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from ux_dom import Document
 from ux_dom.dom import link, meta, title
-from ux_dom.runtime import Channel, Csp, Htmx, XElement
+from ux_dom import Channel, Csp, Htmx, XElement
 
 from app import settings
 
@@ -26,7 +26,6 @@ document = Document(
     ],
     body=[],
     ensure_csrf_token=False,
-    webassets=settings.webassets if settings.WITH_TAILWIND else None,
 ).use(
     XElement(),
     Htmx(middleware=True, version="2.0.4"),
@@ -62,5 +61,5 @@ def page(*content, page_title: str | None = None):
         ),
     ]
     if settings.WITH_TAILWIND:
-        call_head.append(link(href=f"/css/{settings.OUTPUT_CSS}", rel="stylesheet"))
+        call_head.append(link(href=settings.CSS_HREF, rel="stylesheet"))
     return document(WaitChrome(), *content, head=call_head)

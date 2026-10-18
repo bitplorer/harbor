@@ -7,16 +7,24 @@ Assembly::
 
     app = FastAPI(...)
     document.mount(app)
-    DirectoryRouter(...).include(app)
+    bind_routes(app, DirectoryRoutes(package_dir=PACKAGE, base_directory="routes"))
+
+Page routes are ux-compose ``DirectoryRoutes`` (F-11/F-18): the URL is the
+file path under ``app/routes/`` and the class name is never in the URL.
+CSS is compiled by the Tailwind CLI that ux-compose resolves
+(``python -m app.tailwindcss``). Browser HMR is ``uxcompose serve dev``.
 """
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from ux_compose.routing import DirectoryRoutes
+from ux_compose.routing.fastapi import bind as bind_routes
 
 from app import settings
 from app.document import document, page
@@ -25,84 +33,37 @@ from app.shell import storefront
 
 PACKAGE = Path(__file__).resolve().parent
 
-_styles: list = []
-_hmr: list = []
 
-if settings.WITH_TAILWIND:
+async def _compile_css_once() -> None:
+    """Best effort: compile CSS at boot if a Tailwind CLI is already available."""
+    from app.tailwindcss import compile_argv
+
+    argv = compile_argv(ensure=False)
+    if not argv:
+        return
     try:
-        from ux_dom.plugins.style import TailwindStyle
-
-        _styles.append(
-            TailwindStyle(
-                settings.webassets,
-                file_path=PACKAGE / "main.py",
-                input_css=settings.INPUT_CSS,
-                output_css=settings.OUTPUT_CSS,
-                minify=not settings.DEBUG,
-            )
-        )
-    except Exception:
-        _styles = []
-
-if settings.WITH_HMR and settings.DEBUG:
-    try:
-        from ux_dom.plugins.hmr import HotReload
-
-        _hmr.append(
-            HotReload(
-                watch_paths=[str(PACKAGE), str(settings.ASSETS_DIR)],
-            )
-        )
+        proc = await asyncio.create_subprocess_exec(*argv, cwd=str(settings.BASE_DIR))
+        await proc.wait()
     except Exception:
         pass
 
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
-    for style in _styles:
-        try:
-            await style.build(watch=False)
-        except Exception:
-            pass
-    for hmr in _hmr:
-        startup = getattr(hmr, "startup", None)
-        if startup is not None:
-            await startup()
+    if settings.WITH_TAILWIND:
+        await _compile_css_once()
     yield
-    for hmr in _hmr:
-        shutdown = getattr(hmr, "shutdown", None)
-        if shutdown is not None:
-            try:
-                await shutdown()
-            except Exception:
-                pass
-    for style in _styles:
-        stop = getattr(style, "stop", None)
-        if stop is not None:
-            try:
-                await stop()
-            except Exception:
-                pass
 
 
 app = FastAPI(title=settings.APP_TITLE, debug=settings.DEBUG, lifespan=_lifespan)
 
-try:
-    from ux_dom.routing.fastapi import StreamingRoute
-
-    app.router.route_class = StreamingRoute
-except Exception:
-    pass
-
 document.mount(app)
 
-from ux_dom.plugins.routing import DirectoryRouting
+routes = DirectoryRoutes(package_dir=PACKAGE, base_directory="routes")
+# Route units return the full page (document + call-time head), so no wrap.
+bind_routes(app, routes, document=None)
 
-DirectoryRouting(package_dir=PACKAGE, base_directory="routes").include(app)
-
-css_dir = settings.CSS_DIR
-css_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/css", StaticFiles(directory=str(css_dir), check_dir=False), name="css")
+settings.webassets.mount_css(app)
 
 if settings.ASSETS_DIR.exists():
     app.mount(
@@ -111,27 +72,14 @@ if settings.ASSETS_DIR.exists():
         name="assets",
     )
 
-for hmr in _hmr:
-    route = hmr.asgi_route() if hasattr(hmr, "asgi_route") else None
-    if route is not None:
-        path, endpoint = route
-        name = getattr(hmr, "url_name", getattr(hmr, "name", "hmr"))
-        if hasattr(app, "add_api_websocket_route"):
-            app.add_api_websocket_route(path, endpoint, name=name)
-        elif hasattr(app, "add_websocket_route"):
-            app.add_websocket_route(path, endpoint, name=name)
-
 if settings.WITH_CHANNEL:
     host.attach(app)
 
 
-@app.api_route("/", methods=["GET", "HEAD"])
-def _root(request: Request):
-    if request.method == "HEAD":
-        return Response(status_code=200, media_type="text/html")
-    from ux_dom.response.starlette import HTMLResponse
-
-    return HTMLResponse(page(storefront(), page_title=settings.APP_TITLE))
+@app.head("/")
+def _root_head():
+    # GET / is the routes/index.py unit (DirectoryRoutes). HEAD is a cheap probe.
+    return Response(status_code=200, media_type="text/html")
 
 
 @app.post("/act/{name:path}")
