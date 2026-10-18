@@ -1,7 +1,8 @@
 # Prefer: pip install -e ".[channel]"
-ux-dom[fastapidev] @ git+https://github.com/bitplorer/ux-dom.git
+ux-compose @ git+https://github.com/bitplorer/ux-compose.git@c22e41908490b95d376e724bacf0f4e82d9dac7c
+ux-dom[fastapidev] @ git+https://github.com/bitplorer/ux-dom.git@0440ccbf9b9a53a0ba11ae43b3d04b6079b330f4
 ux-app @ git+https://github.com/bitplorer/ux-app.git
-ux-channel @ git+https://github.com/bitplorer/ux-channel.git#subdirectory=python
+ux-channel @ git+https://github.com/bitplorer/ux-channel.git@f1a93fcf298c97a59fa6538697731e19aac8586d#subdirectory=python
 fastapi>=0.103
 uvicorn[standard]>=0.18
 python-multipart>=0.0.6

@@ -1,12 +1,15 @@
 [project]
 name = "harbor"
 version = "0.1.1"
-description = "Harbor & Co. — example shop on ux-dom + ux-app + ux-channel"
+description = "Harbor & Co. — example shop on ux-compose + ux-dom + ux-app + ux-channel"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 dependencies = [
-  "ux-dom[fastapidev] @ git+https://github.com/bitplorer/ux-dom.git",
+  # Routing, WebAssets and the Tailwind CLI come from ux-compose (F-11/F-18).
+  # ux-dom is pinned to the same commit ux-compose pins, so pip can resolve both.
+  "ux-compose @ git+https://github.com/bitplorer/ux-compose.git@c22e41908490b95d376e724bacf0f4e82d9dac7c",
+  "ux-dom[fastapidev] @ git+https://github.com/bitplorer/ux-dom.git@0440ccbf9b9a53a0ba11ae43b3d04b6079b330f4",
   "ux-app @ git+https://github.com/bitplorer/ux-app.git",
   "fastapi>=0.103",
   "uvicorn[standard]>=0.18",
@@ -15,15 +18,15 @@ dependencies = [
 
 [project.optional-dependencies]
 channel = [
-  "ux-channel @ git+https://github.com/bitplorer/ux-channel.git#subdirectory=python",
+  "ux-channel @ git+https://github.com/bitplorer/ux-channel.git@f1a93fcf298c97a59fa6538697731e19aac8586d#subdirectory=python",
 ]
 behavior = [
-  "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git",
+  "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git@2ae5c3de6c60756cfccfa0174355037436bb3f14",
 ]
 dev = [
   "pytest>=7.0",
   "httpx>=0.24",
-  "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git",
+  "ux-behavior @ git+https://github.com/bitplorer/ux-behavior.git@2ae5c3de6c60756cfccfa0174355037436bb3f14",
 ]
 
 [project.urls]
